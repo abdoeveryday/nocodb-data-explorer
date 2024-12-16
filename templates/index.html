@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Database</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .chat-message {
+            padding: 10px;
+            margin: 5px;
+            border-radius: 10px;
+        }
+        .user-message {
+            background-color: #e9ecef;
+            margin-left: 20%;
+        }
+        .assistant-message {
+            background-color: #007bff;
+            color: white;
+            margin-right: 20%;
+        }
+        #chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Left Column: Chat Interface -->
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title">Product Assistant</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="chat-messages">
+                            <div class="text-muted text-center">Ask questions about your product database!</div>
+                        </div>
+                        <div class="input-group mt-3">
+                            <input type="text" id="chat-input" class="form-control" placeholder="Ask a question...">
+                            <button class="btn btn-primary" id="send-button">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Data and Visualizations -->
+            <div class="col-md-8">
+                <!-- Product Table Section -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title">Product List</h3>
+                        <div id="record-info" class="text-muted"></div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>SKU</th>
+                                        <th>Designation</th>
+                                        <th>Family</th>
+                                        <th>Stock Qty</th>
+                                        <th>Sales Qty</th>
+                                        <th>Color</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-body">
+                                    <!-- Table content will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <nav>
+                            <ul class="pagination justify-content-center" id="pagination">
+                                <!-- Pagination will be populated by JavaScript -->
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+
+                <!-- Visualizations Section -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h4>Stock Level Distribution</h4>
+                            </div>
+                            <div class="card-body">
+                                <div id="stock-chart"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h4>Product Family Distribution</h4>
+                            </div>
+                            <div class="card-body">
+                                <div id="family-dist"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h4>Quantity Summary</h4>
+                            </div>
+                            <div class="card-body">
+                                <div id="summary-table"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h4>Sales vs Stock Correlation</h4>
+                            </div>
+                            <div class="card-body">
+                                <div id="scatter-plot"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script>
+        // Existing table loading and pagination code
+        let currentPage = 1;
+
+        function loadTableData(page) {
+            currentPage = page;
+            fetch(`/get_table_data?page=${page}`)
+                .then(response => response.json())
+                .then(data => {
+                    const tableBody = document.getElementById('table-body');
+                    
+                    // Update table content
+                    tableBody.innerHTML = data.data.map(item => `
+                        <tr>
+                            <td>${item.SKU || ''}</td>
+                            <td>${item.designation || ''}</td>
+                            <td>${item.famille || ''}</td>
+                            <td>${item.Qte_stock || '0'}</td>
+                            <td>${item.Qte_ventes || '0'}</td>
+                            <td>${item.couleur || ''}</td>
+                        </tr>
+                    `).join('');
+
+                    // Update record info
+                    document.getElementById('record-info').innerHTML = 
+                        `Showing page ${data.current_page} of ${data.total_pages} (Total records: ${data.total_records})`;
+
+                    // Update pagination
+                    let paginationHTML = '';
+                    if (data.current_page > 1) {
+                        paginationHTML += `
+                            <li class="page-item">
+                                <a class="page-link" href="#" onclick="loadTableData(${data.current_page - 1})">Previous</a>
+                            </li>
+                        `;
+                    }
+
+                    // Add page numbers
+                    for (let i = 1; i <= data.total_pages; i++) {
+                        if (i === data.current_page) {
+                            paginationHTML += `
+                                <li class="page-item active">
+                                    <span class="page-link">${i}</span>
+                                </li>
+                            `;
+                        } else {
+                            paginationHTML += `
+                                <li class="page-item">
+                                    <a class="page-link" href="#" onclick="loadTableData(${i})">${i}</a>
+                                </li>
+                            `;
+                        }
+                    }
+
+                    if (data.current_page < data.total_pages) {
+                        paginationHTML += `
+                            <li class="page-item">
+                                <a class="page-link" href="#" onclick="loadTableData(${data.current_page + 1})">Next</a>
+                            </li>
+                        `;
+                    }
+
+                    document.getElementById('pagination').innerHTML = paginationHTML;
+                })
+                .catch(error => {
+                    console.error('Error loading table data:', error);
+                });
+        }
+
+        // Load initial data
+        loadTableData(1);
+
+        // Load visualizations
+        fetch('/get_data')
+            .then(response => response.json())
+            .then(data => {
+                // Plot stock chart
+                Plotly.newPlot('stock-chart', data.stock_chart.data, data.stock_chart.layout);
+                
+                // Plot family distribution
+                Plotly.newPlot('family-dist', data.family_dist.data, data.family_dist.layout);
+                
+                // Plot summary table
+                Plotly.newPlot('summary-table', data.summary_table.data, data.summary_table.layout);
+                
+                // Plot scatter plot
+                Plotly.newPlot('scatter-plot', data.scatter_plot.data, data.scatter_plot.layout);
+            })
+            .catch(error => {
+                console.error('Error loading visualization data:', error);
+            });
+
+        // Chat functionality
+        document.getElementById('send-button').addEventListener('click', sendMessage);
+        document.getElementById('chat-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const query = input.value.trim();
+            
+            if (!query) return;
+            
+            // Add user message to chat
+            addMessageToChat('user', query);
+            input.value = '';
+            
+            // Show loading indicator
+            addMessageToChat('assistant', '...thinking...');
+            
+            // Send request to server
+            fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query: query })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remove loading indicator
+                const chatMessages = document.getElementById('chat-messages');
+                chatMessages.removeChild(chatMessages.lastChild);
+                
+                // Add response to chat
+                if (data.error) {
+                    addMessageToChat('error', data.error);
+                } else {
+                    addMessageToChat('assistant', data.response);
+                }
+            })
+            .catch(error => {
+                // Remove loading indicator
+                const chatMessages = document.getElementById('chat-messages');
+                chatMessages.removeChild(chatMessages.lastChild);
+                
+                // Add error message
+                addMessageToChat('error', 'Error: Could not get response');
+                console.error('Error:', error);
+            });
+        }
+
+        function addMessageToChat(role, message) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message';
+            
+            // Style based on role
+            switch(role) {
+                case 'user':
+                    messageDiv.className += ' user-message';
+                    messageDiv.innerHTML = `<strong>You:</strong> ${message}`;
+                    break;
+                case 'assistant':
+                    messageDiv.className += ' assistant-message';
+                    messageDiv.innerHTML = `<strong>Assistant:</strong> ${message}`;
+                    break;
+                case 'error':
+                    messageDiv.className += ' bg-danger text-white';
+                    messageDiv.innerHTML = message;
+                    break;
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
